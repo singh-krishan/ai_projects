@@ -34,7 +34,7 @@ import torch
 # CONSTANTS
 # ============================================================================
 
-LLAMA = "meta-llama/Llama-3.2-3B-Instruct"
+LLAMA = "meta-llama/Llama-3.2-1B-Instruct"
 AUDIO_MODEL = "gpt-4o-mini-transcribe"
 
 
@@ -47,12 +47,19 @@ load_dotenv()
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description='Generate meeting minutes from audio files')
-parser.add_argument('--audio', type=str, required=True, help='Path to the audio file')
+parser.add_argument('--audio', type=str, help='Path to the audio file (default: denver_extract.mp3 in current directory)')
 parser.add_argument('--use-openai', action='store_true', help='Use OpenAI for transcription instead of Whisper')
 parser.add_argument('--output', type=str, help='Output file path for the meeting minutes')
 args = parser.parse_args()
 
-audio_filename = args.audio
+# Use provided audio file or default to denver_extract.mp3
+if args.audio:
+    audio_filename = args.audio
+else:
+    # Default to denver_extract.mp3 in the script's directory
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    audio_filename = os.path.join(script_dir, 'denver_extract.mp3')
+    print(f"No audio file specified, using default: {audio_filename}")
 
 # Verify audio file exists
 if not os.path.exists(audio_filename):
@@ -91,14 +98,14 @@ else:
     
     # Detect device (CUDA if available, otherwise CPU)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    dtype = torch.float16 if device == 'cuda' else torch.float32
+    torch_dtype = torch.float16 if device == 'cuda' else torch.float32
     
     print(f"Running on device: {device}")
     
     pipe = pipeline(
         "automatic-speech-recognition",
-        model="openai/whisper-medium.en",
-        dtype=dtype,
+        model="openai/whisper-small.en",
+        torch_dtype=torch_dtype,
         device=device,
         return_timestamps=True
     )
@@ -142,16 +149,22 @@ messages = [
 ]
 
 # Load model and generate meeting minutes
+print("Loading Llama model (this may take a while on first run)...")
 tokenizer = AutoTokenizer.from_pretrained(LLAMA)
 tokenizer.pad_token = tokenizer.eos_token
 
 # Detect device and move inputs accordingly
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+print(f"Loading model on device: {device}")
+
+# Load model without device_map to avoid accelerate dependency
+model = AutoModelForCausalLM.from_pretrained(LLAMA, torch_dtype=torch.float32 if device == 'cpu' else torch.float16)
+model = model.to(device)
+
 inputs = tokenizer.apply_chat_template(messages, return_tensors="pt").to(device)
 
 streamer = TextStreamer(tokenizer)
-model = AutoModelForCausalLM.from_pretrained(LLAMA, device_map="auto")
-outputs = model.generate(inputs, max_new_tokens=2000, streamer=streamer)
+outputs = model.generate(inputs, max_new_tokens=700, streamer=streamer)
 
 # Decode response
 response = tokenizer.decode(outputs[0])

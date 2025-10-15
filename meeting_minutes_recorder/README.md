@@ -44,7 +44,15 @@ cp env.example .env
 
 ## Usage
 
-### Basic Usage (Whisper Transcription)
+### Basic Usage (Default Audio File)
+
+If you have `denver_extract.mp3` in the same directory:
+
+```bash
+python meeting_minutes_recorder.py
+```
+
+### Basic Usage (Custom Audio File)
 
 ```bash
 python meeting_minutes_recorder.py --audio /path/to/your/audio.mp3
@@ -66,7 +74,7 @@ python meeting_minutes_recorder.py --audio /path/to/your/audio.mp3 --output minu
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `--audio` | Yes | Path to the audio file to transcribe |
+| `--audio` | No | Path to the audio file to transcribe (default: `denver_extract.mp3` in script directory) |
 | `--use-openai` | No | Use OpenAI for transcription instead of Whisper |
 | `--output` | No | Output file path for the meeting minutes |
 
@@ -82,16 +90,23 @@ python meeting_minutes_recorder.py --audio /path/to/your/audio.mp3 --output minu
 ## How It Works
 
 1. **Transcription**: The audio file is transcribed using either:
-   - **Whisper** (open-source): Runs locally using HuggingFace's transformer pipeline
+   - **Whisper** (open-source): Runs locally using HuggingFace's transformer pipeline (default: `openai/whisper-small.en` for speed)
    - **OpenAI**: Uses OpenAI's transcription API
 
-2. **Minutes Generation**: The transcription is processed by Meta's Llama 3.2 model to generate structured meeting minutes
+2. **Minutes Generation**: The transcription is processed by Meta's Llama 3.2 model to generate structured meeting minutes (default: `meta-llama/Llama-3.2-1B-Instruct`)
 
 ## Performance Notes
 
 - **GPU Processing**: If you have a CUDA-capable GPU, the script will automatically use it for faster processing
 - **CPU Processing**: The script will fall back to CPU if no GPU is available (slower but functional)
-- **Model Size**: The Whisper medium model is ~1.5GB. It will be downloaded on first run
+- **Model Size**: The default smaller models are faster and lighter:
+- Whisper small: ~0.5GB
+- Llama 3.2 1B: ~2GB
+
+### Runtime expectations
+
+- First run can take a while because models are downloaded to your machine and then loaded into memory before any work starts.
+- Without a GPU, both transcription and minutes generation execute on the CPU, which is significantly slower. Subsequent runs are faster since models are cached locally.
 
 ## Troubleshooting
 
